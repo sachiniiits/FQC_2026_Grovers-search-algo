@@ -58,11 +58,15 @@ def apply_controlled(state: np.ndarray, U: np.ndarray, controls: list[int], targ
     return out
 
 
-def simulate(qc: QuantumCircuit) -> np.ndarray:
-    """Run a Qiskit circuit (without classical control) from |0...0> and return the flat state
-    in course order. Measurements and barriers are skipped; multi-controlled gates with all-ones
-    control state use ``apply_controlled``; any other gate uses its unitary matrix."""
-    state = zero_state(qc.num_qubits)
+def simulate(qc: QuantumCircuit, initial: np.ndarray | None = None) -> np.ndarray:
+    """Run a Qiskit circuit (without classical control) and return the flat state in course order.
+
+    Starts from ``initial`` (a flat course-order state) or from |0...0>. Measurements and barriers
+    are skipped; multi-controlled gates with all-ones control state use ``apply_controlled``; any
+    other gate uses its unitary matrix.
+    """
+    n = qc.num_qubits
+    state = zero_state(n) if initial is None else np.asarray(initial, dtype=complex).reshape((2,) * n)
     for inst in qc.data:
         op = inst.operation
         qubits = [qc.find_bit(q).index for q in inst.qubits]
@@ -109,6 +113,24 @@ def grover_vector_success(n: int, marked: list[int], k: int) -> float:
     """Probability of measuring a marked item after k iterations, from the vector form."""
     a = grover_vector(n, marked, k)
     return float(np.sum(a[marked] ** 2))
+
+
+def to_ket(state: np.ndarray, tol: float = 1e-9) -> str:
+    """Write a flat course-order state as a sum of kets, e.g. "0.5|00> - 0.5|11>"."""
+    n = int(math.log2(len(state)))
+    terms = []
+    for index, amp in enumerate(state):
+        if abs(amp) < tol:
+            continue
+        amp = complex(amp)
+        value = amp.real if abs(amp.imag) < tol else amp
+        coeff = f"{abs(value):.4g}" if isinstance(value, float) else f"({value:.4g})"
+        sign = "-" if isinstance(value, float) and value < 0 else "+"
+        terms.append((sign, f"{coeff}|{index:0{n}b}>"))
+    if not terms:
+        return "0"
+    text = ("-" if terms[0][0] == "-" else "") + terms[0][1]
+    return text + "".join(f" {sign} {term}" for sign, term in terms[1:])
 
 
 def fidelity(a: np.ndarray, b: np.ndarray) -> float:

@@ -447,14 +447,28 @@ def build_blocks(c: dict, q: dict, it: dict, mm: dict, sat: dict, nn: dict, nl: 
         f"{sat['qubits']} qubits in total",
         f"- Grover with M = {o.M}, N = {o.N}: k_opt = {sat['k']}, theory P = {theory_success(o.N, o.M, sat['k']):.4f}, "
         f"Aer P = {res.success_probability:.3f}",
-        f"- Three most frequent results: " + ", ".join(f"`{x}` ({res.counts[x] / res.shots:.3f})" for x in top),
+        "- Three most frequent results: " +", ".join(f"`{x}` ({res.counts[x] / res.shots:.3f})" for x in top),
     ])
 
-    blocks["noise_n"] = table(
-        ["n", "N", "k_opt", "ideal P (Aer)", "noisy P (Aer)", "random guess 1/N", "CNOTs after transpile"],
-        [[r["n"], r["N"], r["k"], f"{r['ideal']:.3f}", f"{r['noisy']:.3f}", f"{r['guess']:.3f}", r["cnots"]]
-         for r in nn["rows"]],
+    rows_n = nn["rows"]
+    near_guess = next(
+        (r for i, r in enumerate(rows_n) if all(x["noisy"] < 2 * x["guess"] for x in rows_n[i:])), None
     )
+    finding = (
+        f"From n = {near_guess['n']} on ({near_guess['cnots']} CNOTs) the noisy success probability is below "
+        "twice the random-guess level 1/N."
+        if near_guess
+        else "The noisy success probability stays above twice the random-guess level for every n tested."
+    )
+    blocks["noise_n"] = "\n".join([
+        table(
+            ["n", "N", "k_opt", "ideal P (Aer)", "noisy P (Aer)", "random guess 1/N", "CNOTs after transpile"],
+            [[r["n"], r["N"], r["k"], f"{r['ideal']:.3f}", f"{r['noisy']:.3f}", f"{r['guess']:.3f}", r["cnots"]]
+             for r in nn["rows"]],
+        ),
+        "",
+        finding,
+    ])
     blocks["noise_level"] = "\n".join([
         f"n = 3, marked `{nl['w']}`, k = {nl['k']}, ideal theory P = {nl['theory']:.4f}, "
         f"{nl['rows'][0]['cnots']} CNOTs after transpiling.",
@@ -529,7 +543,7 @@ def update_readme(blocks: dict[str, str]) -> None:
         if not pattern.search(text):
             log(f"README.md has no block '{name}'")
             continue
-        text = pattern.sub(lambda m: m.group(1) + body + "\n" + m.group(2), text)
+        text = pattern.sub(lambda m: m.group(1) + "\n" + body + "\n\n" + m.group(2), text)
     README.write_text(text, encoding="utf-8", newline="\n")
 
 

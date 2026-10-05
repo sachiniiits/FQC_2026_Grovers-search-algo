@@ -83,6 +83,8 @@ Fitted log-log slopes (queries ~ N^slope), classical for n = 2..16 with 500 sear
 | 7 | 128 | 8 | 0.996 | 0.009 | 0.008 | 1984 |
 | 8 | 256 | 12 | 1.000 | 0.003 | 0.004 | 4320 |
 
+From n = 6 on (1008 CNOTs) the noisy success probability is below twice the random-guess level 1/N.
+
 ## 8. Noise vs level
 
 n = 3, marked `101`, k = 2, ideal theory P = 0.9453, 24 CNOTs after transpiling.
@@ -99,18 +101,18 @@ n = 3, marked `101`, k = 2, ideal theory P = 0.9453, 24 CNOTs after transpiling.
 ## 9. Simulation cost (machine dependent)
 
 Time for one Grover iteration on the full 2^n state, best of several runs. Fitted growth per added
-qubit for n >= 16: Aer x1.97, NumPy x2.37.
+qubit for n >= 16: Aer x1.94, NumPy x2.30.
 
 | n | Aer s / iteration | NumPy s / iteration | k_opt (iterations a full run needs) |
 |---|---|---|---|
-| 4 | 0.00073 | 0.00002 | 3 |
-| 6 | 0.00087 | 0.00001 | 6 |
-| 8 | 0.00100 | 0.00001 | 12 |
-| 10 | 0.00123 | 0.00002 | 25 |
-| 12 | 0.00181 | 0.00002 | 50 |
-| 14 | 0.00409 | 0.00003 | 100 |
-| 16 | 0.00397 | 0.00009 | 201 |
-| 18 | 0.01107 | 0.00133 | 402 |
-| 20 | 0.03370 | 0.00535 | 804 |
-| 22 | 0.18601 | 0.02469 | 1608 |
-| 24 | 0.87041 | 0.11511 | 3216 |
+| 4 | 0.00111 | 0.00002 | 3 |
+| 6 | 0.00145 | 0.00003 | 6 |
+| 8 | 0.00149 | 0.00002 | 12 |
+| 10 | 0.00132 | 0.00002 | 25 |
+| 12 | 0.00196 | 0.00002 | 50 |
+| 14 | 0.00497 | 0.00003 | 100 |
+| 16 | 0.00418 | 0.00010 | 201 |
+| 18 | 0.01085 | 0.00128 | 402 |
+| 20 | 0.03408 | 0.00512 | 804 |
+| 22 | 0.17686 | 0.02211 | 1608 |
+| 24 | 0.79957 | 0.10092 | 3216 |

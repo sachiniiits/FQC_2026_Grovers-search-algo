@@ -5,10 +5,10 @@ import pytest
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from grover.circuits import grover_circuit, optimal_iterations, theory_success
+from grover.circuits import diffuser, grover_circuit, optimal_iterations, theory_success
 from grover.oracles import DEMO_FORMULA, marked_oracle, multi_marked_oracle, sat_oracle
 from grover.quantum import runnable
-from grover.statevector import fidelity, grover_vector, grover_vector_success, simulate
+from grover.statevector import fidelity, grover_vector, grover_vector_success, simulate, to_ket
 
 
 def qiskit_state_course_order(qc: QuantumCircuit) -> np.ndarray:
@@ -71,3 +71,15 @@ def test_gate_level_matches_qiskit_with_ancillas() -> None:
 def test_gate_level_matches_qiskit_multi_marked() -> None:
     qc = runnable(grover_circuit(multi_marked_oracle(5, ["00001", "11000", "10101"]), 2, measure=False))
     assert fidelity(simulate(qc), qiskit_state_course_order(qc)) >= 1 - 1e-9
+
+
+def test_simulate_from_initial_state_and_ket() -> None:
+    oracle = marked_oracle(2, "11")
+    h = QuantumCircuit(2)
+    h.h([0, 1])
+    s = simulate(h)
+    assert to_ket(s) == "0.5|00> + 0.5|01> + 0.5|10> + 0.5|11>"
+    after_oracle = simulate(oracle.circuit, initial=s)
+    assert to_ket(after_oracle) == "0.5|00> + 0.5|01> + 0.5|10> - 0.5|11>"
+    after_diffuser = simulate(diffuser(2), initial=after_oracle)
+    assert to_ket(after_diffuser) == "-1|11>"
