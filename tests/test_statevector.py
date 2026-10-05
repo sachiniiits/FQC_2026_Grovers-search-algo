@@ -6,7 +6,7 @@ from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
 from grover.circuits import grover_circuit, optimal_iterations, theory_success
-from grover.oracles import marked_oracle
+from grover.oracles import DEMO_FORMULA, marked_oracle, multi_marked_oracle, sat_oracle
 from grover.quantum import runnable
 from grover.statevector import fidelity, grover_vector, grover_vector_success, simulate
 
@@ -61,3 +61,13 @@ def test_vector_form_matches_course_notes_n4() -> None:
     notes = [0.062, 0.473, 0.908, 0.961, 0.582, 0.125, 0.020, 0.365, 0.836]
     got = [grover_vector_success(4, [5], k) for k in range(9)]
     assert got == pytest.approx(notes, abs=1e-3)
+
+
+def test_gate_level_matches_qiskit_with_ancillas() -> None:
+    qc = runnable(grover_circuit(sat_oracle(DEMO_FORMULA), 2, measure=False))
+    assert fidelity(simulate(qc), qiskit_state_course_order(qc)) >= 1 - 1e-9
+
+
+def test_gate_level_matches_qiskit_multi_marked() -> None:
+    qc = runnable(grover_circuit(multi_marked_oracle(5, ["00001", "11000", "10101"]), 2, measure=False))
+    assert fidelity(simulate(qc), qiskit_state_course_order(qc)) >= 1 - 1e-9

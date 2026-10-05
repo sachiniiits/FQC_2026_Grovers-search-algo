@@ -5,7 +5,7 @@ import math
 import pytest
 
 from grover.circuits import grover_circuit, optimal_iterations, theory_success
-from grover.oracles import marked_oracle
+from grover.oracles import DEMO_FORMULA, all_strings, marked_oracle, multi_marked_oracle, sat_oracle
 from grover.quantum import run_grover
 
 SHOTS = 4000
@@ -39,3 +39,22 @@ def test_ideal_run_handles_named_oracle_gate() -> None:
     result = run_grover(oracle, 2, shots=200, seed=5)
     assert sum(result.counts.values()) == 200
     assert result.oracle_calls == 2
+
+
+@pytest.mark.parametrize("M", [2, 4, 8])
+def test_multiple_marked_success_matches_theory(M: int) -> None:
+    n = 6
+    ws = all_strings(n)[3 :: 64 // M][:M]
+    k = optimal_iterations(2**n, M)
+    result = run_grover(multi_marked_oracle(n, ws), k, shots=SHOTS, seed=M)
+    assert within_shot_noise(result.success_probability, theory_success(2**n, M, k))
+
+
+def test_sat_grover_amplifies_solutions() -> None:
+    oracle = sat_oracle(DEMO_FORMULA)
+    k = optimal_iterations(oracle.N, oracle.M)
+    result = run_grover(oracle, k, shots=SHOTS, seed=21)
+    assert result.oracle_calls == k
+    assert within_shot_noise(result.success_probability, theory_success(oracle.N, oracle.M, k))
+    top_two = sorted(result.counts, key=result.counts.__getitem__)[-2:]
+    assert sorted(top_two) == list(oracle.marked)

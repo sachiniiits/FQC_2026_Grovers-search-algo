@@ -14,6 +14,13 @@ from itertools import product
 
 from qiskit import QuantumCircuit
 
+Formula = list[tuple[int, ...]]
+"""A CNF formula in DIMACS style: each clause is a tuple of literals, literal +j means x_j and
+-j means NOT x_j, with variables numbered 1..n. Variable x_j lives on qubit j - 1."""
+
+DEMO_FORMULA: Formula = [(1, 2, 3), (-1, -3), (1, -2), (3, 4), (2, -4)]
+"""The SAT instance used in the experiments and the notebook (4 variables, 5 clauses)."""
+
 
 @dataclass(frozen=True)
 class Oracle:
@@ -92,3 +99,65 @@ def multi_marked_oracle(n: int, ws: list[str]) -> Oracle:
         _check_string(n, w)
         _flip_phase_of(qc, n, w)
     return Oracle(circuit=qc, n=n, marked=tuple(sorted(ws)))
+
+
+def num_variables(formula: Formula) -> int:
+    """Number of variables, the largest variable index used in the formula."""
+    return max(abs(lit) for clause in formula for lit in clause)
+
+
+def evaluate_formula(formula: Formula, x: str) -> bool:
+    """Evaluate a CNF formula on the assignment x, where x[j - 1] is the value of x_j."""
+    return all(any((x[abs(lit) - 1] == "1") == (lit > 0) for lit in clause) for clause in formula)
+
+
+def brute_force_solutions(formula: Formula) -> list[str]:
+    """All satisfying assignments, found by trying every assignment."""
+    n = num_variables(formula)
+    return [x for x in all_strings(n) if evaluate_formula(formula, x)]
+
+
+def formula_to_text(formula: Formula) -> str:
+    """Readable form, e.g. "(x1 OR NOT x2) AND (x2 OR x3)"."""
+    def literal(lit: int) -> str:
+        return f"x{lit}" if lit > 0 else f"NOT x{-lit}"
+
+    return " AND ".join("(" + " OR ".join(literal(lit) for lit in clause) + ")" for clause in formula)
+
+
+def sat_oracle(formula: Formula) -> Oracle:
+    """Oracle that checks a CNF formula gate by gate, without knowing its solutions.
+
+    Qubits: n variable qubits, then one ancilla per clause, then one output qubit that Grover's
+    circuit prepares in |->. Each clause ancilla is set to the OR of its literals using
+    De Morgan (OR = NOT AND of negations): X on positive literals, multi-controlled X onto the
+    ancilla, X on the ancilla, then undo the literal X gates. A multi-controlled X from all clause
+    ancillas onto the |-> qubit kicks back the phase (-1)^f(x), as in lecture 08. The clause
+    ancillas are then uncomputed, so they return to |0>.
+
+    The ``marked`` field is filled by brute force only so the classical side and the tests can use
+    the truth table; the circuit itself is built from the clauses alone.
+    """
+    n = num_variables(formula)
+    c = len(formula)
+    out = n + c
+    qc = QuantumCircuit(n + c + 1, name="oracle")
+
+    def compute_clause(j: int) -> None:
+        clause = formula[j]
+        flips = [lit - 1 for lit in clause if lit > 0]
+        controls = [abs(lit) - 1 for lit in clause]
+        if flips:
+            qc.x(flips)
+        qc.mcx(controls, n + j)
+        qc.x(n + j)
+        if flips:
+            qc.x(flips)
+
+    for j in range(c):
+        compute_clause(j)
+    qc.mcx(list(range(n, n + c)), out)
+    for j in reversed(range(c)):
+        compute_clause(j)
+
+    return Oracle(circuit=qc, n=n, marked=tuple(brute_force_solutions(formula)), kickback_qubit=out)
