@@ -53,8 +53,9 @@ def grover_circuit(oracle: Oracle, k: int, measure: bool = True) -> QuantumCircu
     qc.h(range(n))
     qc.barrier(label="psi_0")
 
-    oracle_gate = oracle.circuit.to_gate(label="Oracle")
-    diffuser_gate = diffuser(n).to_gate(label="Diffuser")
+    # Padded labels keep Qiskit's qubit-index markers clear of the text in mpl drawings.
+    oracle_gate = oracle.circuit.to_gate(label="   Oracle   ")
+    diffuser_gate = diffuser(n).to_gate(label="   Diffuser   ")
     all_qubits = list(range(qc.num_qubits))
     for j in range(1, k + 1):
         qc.append(oracle_gate, all_qubits[: oracle.circuit.num_qubits])

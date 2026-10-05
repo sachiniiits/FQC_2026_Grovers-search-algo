@@ -6,8 +6,10 @@ from dataclasses import dataclass
 
 from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
+from qiskit_aer.noise import NoiseModel
 
 from grover.circuits import grover_circuit
+from grover.noise import cnot_count, transpile_for_noise, uncovered_gates
 from grover.oracles import Oracle
 
 
@@ -37,6 +39,7 @@ class GroverResult:
         most_likely: the most frequent bitstring.
         oracle_calls: oracle blocks counted from the circuit.
         found: whether the most likely bitstring is a marked item.
+        cnots: CNOT count of the transpiled circuit for noisy runs, None for ideal runs.
     """
 
     counts: dict[str, int]
@@ -45,17 +48,40 @@ class GroverResult:
     most_likely: str
     oracle_calls: int
     found: bool
+    cnots: int | None = None
 
 
-def run_grover(oracle: Oracle, k: int, shots: int = 4000, seed: int | None = None) -> GroverResult:
-    """Run Grover with k iterations on the ideal Aer simulator."""
+def run_grover(
+    oracle: Oracle,
+    k: int,
+    shots: int = 4000,
+    noise: NoiseModel | None = None,
+    seed: int | None = None,
+) -> GroverResult:
+    """Run Grover with k iterations on Aer, ideal (``noise=None``) or with a noise model.
+
+    Oracle calls are counted on the logical circuit. Ideal runs expand the named gates and run
+    directly. Noisy runs transpile to the hardware-like basis first and refuse to run if any gate
+    in the transpiled circuit has no error attached, so nothing runs noiseless by accident.
+    """
     qc = grover_circuit(oracle, k)
     calls = count_oracle_calls(qc)
-    raw = AerSimulator().run(runnable(qc), shots=shots, seed_simulator=seed).result().get_counts()
-    return _interpret(raw, oracle, shots, calls)
+    if noise is None:
+        raw = AerSimulator().run(runnable(qc), shots=shots, seed_simulator=seed).result().get_counts()
+        return _interpret(raw, oracle, shots, calls, None)
+    tqc = transpile_for_noise(qc)
+    missing = uncovered_gates(tqc, noise)
+    # A scale-0 model has no errors at all and is ideal by design; any partial model is rejected.
+    if missing and noise.noise_instructions:
+        raise ValueError(f"gates without noise: {sorted(missing)}")
+    sim = AerSimulator(noise_model=noise)
+    raw = sim.run(tqc, shots=shots, seed_simulator=seed).result().get_counts()
+    return _interpret(raw, oracle, shots, calls, cnot_count(tqc))
 
 
-def _interpret(raw: dict[str, int], oracle: Oracle, shots: int, calls: int) -> GroverResult:
+def _interpret(
+    raw: dict[str, int], oracle: Oracle, shots: int, calls: int, cnots: int | None
+) -> GroverResult:
     counts = {to_course_order(key): value for key, value in raw.items()}
     hits = sum(counts.get(w, 0) for w in oracle.marked)
     most_likely = max(sorted(counts), key=counts.__getitem__)
@@ -66,4 +92,5 @@ def _interpret(raw: dict[str, int], oracle: Oracle, shots: int, calls: int) -> G
         most_likely=most_likely,
         oracle_calls=calls,
         found=most_likely in oracle.marked,
+        cnots=cnots,
     )
